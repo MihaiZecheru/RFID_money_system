@@ -3,7 +3,7 @@
 
 #include <Keypad.h>
 
-#include "OLED.h"
+#include "LCD.h"
 
 // COL2, ROW1, COL1, ROW4, COL3, ROW3, ROW2.
 #define COL2 8
@@ -37,52 +37,56 @@ char listen_for_keypress()
   while (true)
   {
     char key = keypad.getKey();
-    if (key) return key;
+    Serial.println(key);
+    if (key || key == '0') return key;
   }
 }
 
+/**
+ * Get a key input to represent that quantity. Numbers 0 through 9 only.
+ * 1-9 are for the quantity but 0 is for moving into read card mode where users can sscan to see their balance
+ */
 uint8_t get_quantity_input()
 {
   while (true)
   {
     char key = listen_for_keypress();
-    if (key != '*' && key != '0' && key != '#')
-    return static_cast<uint8_t>(key - '0');
+    if (isdigit(key)) return static_cast<uint8_t>(key - '0');
   }
 }
 
 /**
- * Accept key input until the # is pressed.
- * Display on the OLED the formatted current price input as it's being typed.
+ * Accept key input until the # is pressed. This will be the price.
+ * Display on the LCD the formatted current price input as it's being typed.
  * @param quantity The amount that will be purchased at the typed price
  */
 float handle_price_input(uint8_t quantity)
 {
-  String price_str = "";
-  display_price(quantity, price_str.length() == 0 ? 0 : price_str.toInt());
+    char price_str[8] = ""; // Up to 7 digits plus a null terminator
+    uint8_t price_len = 0;
+    display_price(quantity, 0);
 
-  while (true)
-  {
-    char c = listen_for_keypress();
-    Serial.print("Keypress: ");
-    Serial.println(c);
-    
-    // Delete previous character
-    if (c == '*' && price_str.length() > 0)
+    while (true)
     {
-      price_str = price_str.substring(0, price_str.length() - 1);
-      display_price(quantity, price_str.length() == 0 ? 0 : price_str.toInt());
-      continue;
+      char c = listen_for_keypress();
+      
+      if (c == '*' && price_len > 0)
+      {
+        price_str[--price_len] = '\0'; // Remove last character and add null terminator
+        display_price(quantity, price_len == 0 ? 0 : atol(price_str));
+        continue;
+      }
+
+      if (c == '#') break;
+      
+      if (isdigit(c) && price_len < 7) {
+        price_str[price_len++] = c;
+        price_str[price_len] = '\0';
+        display_price(quantity, atol(price_str));
+      }
     }
 
-    if (c == '#') break;
-    price_str += c;
-    Serial.print("price_str: $");
-    Serial.println(price_str);
-    display_price(quantity, price_str.toInt());
-  }
-  
-  return price_str.toInt();
+    return atol(price_str) / 100.00;
 }
 
 #endif

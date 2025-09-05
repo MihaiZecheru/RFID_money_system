@@ -4,8 +4,6 @@
 #include <SPI.h>
 #include <MFRC522.h>
 
-#include "Card.h"
-
 #define NAME_BLOCK 4    // The first block of the RFID card is used to store the user's name (char*)
 #define BALANCE_BLOCK 5 // The second block is used to store their balance (float)
 
@@ -43,10 +41,12 @@ void read_single_block(byte block, byte* buffer) {
   byte size = 18;
   MFRC522::StatusCode status;
   status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &RFID_KEY, &(rfid.uid));
+
   if (status != MFRC522::STATUS_OK) {
     Serial.print(F("Auth failed for block ")); Serial.println(block);
     return;
   }
+
   status = rfid.MIFARE_Read(block, buffer, &size);
   if (status != MFRC522::STATUS_OK) {
     Serial.print(F("Read failed for block ")); Serial.println(block);
@@ -56,13 +56,21 @@ void read_single_block(byte block, byte* buffer) {
 
 /**
  * Read the data block from the RFID card containing the user's name
+ * @note names must be at most 6 characters
  */
 String read_name()
-{
+{ // TODO: fix name being cccc
   byte data[16];
   read_single_block(NAME_BLOCK, data);
-  data[15] = 0; // ensure null termination
-  return String((char*)data);
+  
+  // Find the end of the name or the end of the buffer
+  byte i = 0;
+  while (i < 16 && data[i] != '\0' && data[i] != ' ' && data[i] != '\n' && data[i] != '\r') i++;
+  data[i] = '\0';
+
+  String s = String((char*)data);
+  if (s.length() > 6) s = s.substring(0, 6);
+  return s;
 }
 
 /**
@@ -106,15 +114,15 @@ void write_card_block(byte block, byte *data) {
     Serial.println(block);
     return;
   }
-
-  Serial.print(F("Block ")); Serial.print(block); Serial.println(F(" written successfully!"));
 }
 
 /**
  * Rewrite the user's name in the card's name block
+ * @note names must be at most 6 characters
  */
 void write_name(String name)
 {
+  if (name.length() > 6) name = name.substring(0, 6);
   byte data[16] = {0}; // clear block
   name.toCharArray((char*)data, 16); // copy string into bytes
   write_card_block(NAME_BLOCK, data);
@@ -145,12 +153,27 @@ String read_UID()
   return uid;
 }
 
-Card* read_card()
-{  
-  String uid = read_UID();
-  String name = read_name();
-  float bal = read_balance();
-  return new Card(uid, name, bal);
+/**
+ * Prevent the same card from being read back-to-back. Blocking function.
+ * @returns True if a new RFID card was detected
+ */
+bool wait_for_new_rfid_card()
+{
+  while (true)
+  {
+    if (!rfid.PICC_IsNewCardPresent()) continue;
+    if (!rfid.PICC_ReadCardSerial()) continue;
+    return true;
+  }
+}
+
+/**
+ * Prevents read collision and allow card to be read again at a later time
+ */
+void rfid_cleanup()
+{
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
 }
 
 #endif

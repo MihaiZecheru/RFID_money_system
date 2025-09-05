@@ -2,42 +2,36 @@
 #include <MFRC522.h>
 
 #include "RFID.h"
-#include "Card.h"
+#include "Transactions.h"
 #include "Keypad.h"
 #include "Buzzer.h"
-#include "OLED.h"
+#include "LCD.h"
+
+// NOTE: names must be at most 6 characters
 
 void setup()
 {
+  // Wire.begin();
   Serial.begin(9600);
   init_RFID_module();
-  init_oled_display();
+  init_lcd_display();
 }
 
 void loop()
 {
   write_starting_instructions();
   uint8_t quantity = get_quantity_input();
-  float price = handle_price_input(quantity);
-  Serial.print("\n$");
-  Serial.println(price);
-
-
-  Serial.println("\n\nPlace your RFID tag near the reader...\n");
-
-  // Look for new cards
-  if (!rfid.PICC_IsNewCardPresent()) return;
-  if (!rfid.PICC_ReadCardSerial()) return;
-
-  Card* card = read_card();
-  card->print();
-  write_balance(card->get_balance() - price);
-  card->buy_item(price);
-  card->print();
-  delete card;
-  success_beep();
-
-  // Clean up - prevents read collision
-  rfid.PICC_HaltA();
-  rfid.PCD_StopCrypto1();
+  if (quantity == 0)
+  {
+    // No quantity given; enter "read" mode
+    // Users can scan their card to see their balance
+    wait_for_card_and_show_user_his_balance();
+  }
+  else
+  {
+    // Quantity has been given. Get the price per item, multiply, then charge the card
+    float price_per_item = handle_price_input(quantity);
+    float total = price_per_item * quantity;
+    wait_for_card_and_perform_transaction(total);
+  }
 }
