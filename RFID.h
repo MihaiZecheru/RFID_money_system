@@ -14,13 +14,13 @@
 
 MFRC522 rfid(SS_PIN, RST_PIN);
 
-static MFRC522::MIFARE_Key key;
+static MFRC522::MIFARE_Key RFID_KEY;
 void init_auth_key()
 {
   // Set default key = FF FF FF FF FF FF
   for (byte i = 0; i < 6; i++)
   {
-    key.keyByte[i] = 0xFF;
+    RFID_KEY.keyByte[i] = 0xFF;
   }
 }
 
@@ -42,7 +42,7 @@ void init_RFID_module()
 void read_single_block(byte block, byte* buffer) {
   byte size = 18;
   MFRC522::StatusCode status;
-  status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(rfid.uid));
+  status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &RFID_KEY, &(rfid.uid));
   if (status != MFRC522::STATUS_OK) {
     Serial.print(F("Auth failed for block ")); Serial.println(block);
     return;
@@ -87,7 +87,7 @@ void write_card_block(byte block, byte *data) {
   status = rfid.PCD_Authenticate(
     MFRC522::PICC_CMD_MF_AUTH_KEY_A,
     block,
-    &key,
+    &RFID_KEY,
     &(rfid.uid)
   );
   
