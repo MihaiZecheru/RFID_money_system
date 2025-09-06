@@ -71,6 +71,7 @@ void wait_for_card_and_show_user_his_balance()
   String user_name = read_name();
   float current_balance = read_balance();
   show_user_his_balance(user_name, current_balance);
+  success_beep();
   delay(5000);
 }
 
